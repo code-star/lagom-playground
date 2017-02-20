@@ -6,37 +6,37 @@ import com.lightbend.lagom.scaladsl.persistence.cassandra.CassandraPersistenceCo
 import com.lightbend.lagom.scaladsl.server._
 import com.lightbend.lagom.scaladsl.devmode.LagomDevModeComponents
 import play.api.libs.ws.ahc.AhcWSComponents
-import com.example.lagomshopping.api.LagomshoppingService
+import com.example.lagomshopping.api.OrderService
 import com.softwaremill.macwire._
 
-class LagomshoppingLoader extends LagomApplicationLoader {
+class OrderLoader extends LagomApplicationLoader {
 
   override def load(context: LagomApplicationContext): LagomApplication =
-    new LagomshoppingApplication(context) {
+    new OrderApplication(context) {
       override def serviceLocator: ServiceLocator = NoServiceLocator
     }
 
   override def loadDevMode(context: LagomApplicationContext): LagomApplication =
-    new LagomshoppingApplication(context) with LagomDevModeComponents
+    new OrderApplication(context) with LagomDevModeComponents
 
   override def describeServices = List(
-    readDescriptor[LagomshoppingService]
+    readDescriptor[OrderService]
   )
 }
 
-abstract class LagomshoppingApplication(context: LagomApplicationContext)
+abstract class OrderApplication(context: LagomApplicationContext)
   extends LagomApplication(context)
     with CassandraPersistenceComponents
     with AhcWSComponents {
 
   // Bind the services that this server provides
   override lazy val lagomServer = LagomServer.forServices(
-    bindService[LagomshoppingService].to(wire[LagomshoppingServiceImpl])
+    bindService[OrderService].to(wire[OrderServiceImpl])
   )
 
   // Register the JSON serializer registry
   override lazy val jsonSerializerRegistry = LagomshoppingSerializerRegistry
 
   // Register the LagomShopping persistent entity
-  persistentEntityRegistry.register(wire[LagomshoppingEntity])
+  persistentEntityRegistry.register(wire[OrderEntity])
 }

@@ -1,0 +1,3 @@
+
+GET     /order                                  controllers.OrderController.createOrder
+GET     /order/:orderId/add/:productId          controllers.OrderController.addProductToOrder(orderId: String, productId: String)

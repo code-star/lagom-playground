@@ -17,7 +17,7 @@ class LagomshoppingServiceSpec extends AsyncWordSpec with Matchers with BeforeAn
     new LagomshoppingApplication(ctx) with LocalServiceLocator
   }
 
-  val client = server.serviceClient.implement[LagomshoppingService]
+  val client = server.serviceClient.implement[OrderService]
 
   override protected def afterAll() = server.stop()
 

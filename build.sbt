@@ -7,8 +7,15 @@ scalaVersion in ThisBuild := "2.11.8"
 val macwire = "com.softwaremill.macwire" %% "macros" % "2.2.5" % "provided"
 val scalaTest = "org.scalatest" %% "scalatest" % "3.0.1" % Test
 
-lazy val `lagomshopping` = (project in file("."))
-  .aggregate(`order-api`, `order-impl`, `order-stream-api`, `order-stream-impl`)
+lazy val `lagom-shopping` = (project in file("."))
+  .settings(name := "codestar-memorabilia-store")
+  .aggregate(
+    `order-api`,
+    `order-impl`,
+    `stock-api`,
+    `stock-impl`,
+    `web-gateway`
+  )
 
 lazy val `order-api` = (project in file("order-api"))
   .settings(
@@ -30,21 +37,32 @@ lazy val `order-impl` = (project in file("order-impl"))
   .settings(lagomForkedTestSettings: _*)
   .dependsOn(`order-api`)
 
-lazy val `order-stream-api` = (project in file("order-stream-api"))
+lazy val `stock-api` = (project in file("stock-api"))
   .settings(
     libraryDependencies ++= Seq(
       lagomScaladslApi
     )
   )
 
-lazy val `order-stream-impl` = (project in file("order-stream-impl"))
+lazy val `stock-impl` = (project in file("stock-impl"))
   .enablePlugins(LagomScala)
   .settings(
     libraryDependencies ++= Seq(
+      lagomScaladslPersistenceCassandra,
       lagomScaladslTestKit,
       macwire,
       scalaTest
     )
   )
-  .dependsOn(`order-stream-api`, `order-api`)
+  .dependsOn(`stock-api`)
+
+lazy val `web-gateway` = (project in file("web-gateway"))
+  .enablePlugins(PlayScala && LagomScala)
+  .settings(
+    libraryDependencies ++= Seq(
+      lagomScaladslServer,
+      macwire
+    )
+  )
+  .dependsOn(`stock-api`, `order-api`)
 

@@ -1,17 +1,15 @@
 package com.example.lagomshopping.impl
 
 import java.time.LocalDateTime
-
-import akka.Done
+import akka.{ Done, NotUsed }
 import com.lightbend.lagom.scaladsl.persistence.PersistentEntity
 import com.lightbend.lagom.scaladsl.persistence.PersistentEntity.ReplyType
-import com.lightbend.lagom.scaladsl.playjson.{JsonSerializerRegistry, JsonSerializer}
-import play.api.libs.json.{Format, Json}
-
+import com.lightbend.lagom.scaladsl.playjson.{ JsonSerializer, JsonSerializerRegistry }
+import play.api.libs.json.{ Format, Json }
 import scala.collection.immutable.Seq
 
 /**
-  * This is an event sourced entity. It has a state, [[LagomshoppingState]], which
+  * This is an event sourced entity. It has a state, [[OrderState]], which
   * stores what the greeting should be (eg, "Hello").
   *
   * Event sourced entities are interacted with by sending them commands. This
@@ -29,23 +27,23 @@ import scala.collection.immutable.Seq
   * This entity defines one event, the [[GreetingMessageChanged]] event,
   * which is emitted when a [[UseGreetingMessage]] command is received.
   */
-class LagomshoppingEntity extends PersistentEntity {
+class OrderEntity extends PersistentEntity {
 
-  override type Command = LagomshoppingCommand[_]
-  override type Event = LagomshoppingEvent
-  override type State = LagomshoppingState
+  override type Command = OrderCommand[_]
+  override type Event = OrderEvent
+  override type State = OrderState
 
   /**
     * The initial state. This is used if there is no snapshotted state to be found.
     */
-  override def initialState: LagomshoppingState = LagomshoppingState("Hello", LocalDateTime.now.toString, Seq.empty)
+  override def initialState: OrderState = OrderState("Hello", LocalDateTime.now.toString, Seq.empty)
 
   /**
     * An entity can define different behaviours for different states, so the behaviour
     * is a function of the current state to a set of actions.
     */
   override def behavior: Behavior = {
-    case LagomshoppingState(message, _, events) => Actions().onCommand[UseGreetingMessage, Done] {
+    case OrderState(message, _, events) => Actions().onCommand[UseGreetingMessage, Done] {
 
       // Command handler for the UseGreetingMessage command
       case (UseGreetingMessage(newMessage), ctx, state) =>
@@ -66,22 +64,27 @@ class LagomshoppingEntity extends PersistentEntity {
         // the person we're meant to say hello to.
         ctx.reply(s"$message, $name!")
 
-    }.onEvent {
-
-      // Event handler for the GreetingMessageChanged event
-      case (GreetingMessageChanged(newMessage), state) =>
-        // We simply update the current state to use the greeting message from
-        // the event.
-        LagomshoppingState(newMessage, LocalDateTime.now().toString, events)
-
+    }.onCommand[CreateOrder, Done] {
+      case (CreateOrder(orderId), ctx, state) =>
+        ctx.thenPersist(
+          OrderCreated(orderId)
+        ) { _ =>
+          ctx.reply(Done)
+        }
     }.onCommand[AddProductToOrderRequest, Done] {
-      case (AddProductToOrderRequest(productId),ctx,state) =>
+      case (AddProductToOrderRequest(productId), ctx, state) =>
         ctx.thenPersist(
           AddProductToOrderRequested(productId)
         ) { _ =>
           // Then once the event is successfully persisted, we respond with done.
           ctx.reply(Done)
         }
+    }.onEvent {
+      case (GreetingMessageChanged(newMessage), state) =>
+        OrderState(newMessage, LocalDateTime.now().toString)
+      case (OrderCreated(orderId), state) =>
+        OrderState
+
     }
   }
 }
@@ -89,9 +92,9 @@ class LagomshoppingEntity extends PersistentEntity {
 /**
   * The current state held by the persistent entity.
   */
-case class LagomshoppingState(message: String, timestamp: String, events:Seq[AddProductToOrderRequested])
+case class OrderState(message: String, timestamp: String)
 
-object LagomshoppingState {
+object OrderState {
   /**
     * Format for the hello state.
     *
@@ -101,18 +104,22 @@ object LagomshoppingState {
     * snapshot. Hence, a JSON format needs to be declared so that it can be
     * serialized and deserialized when storing to and from the database.
     */
-  implicit val format: Format[LagomshoppingState] = Json.format
+  implicit val format: Format[OrderState] = Json.format
 }
 
 /**
   * This interface defines all the events that the LagomshoppingEntity supports.
   */
-sealed trait LagomshoppingEvent
+sealed trait OrderEvent
+
+object OrderEvent {
+  implicit val format: Format[OrderEvent] = Json.format
+}
 
 /**
   * An event that represents a change in greeting message.
   */
-case class GreetingMessageChanged(message: String) extends LagomshoppingEvent
+case class GreetingMessageChanged(message: String) extends OrderEvent
 
 
 object GreetingMessageChanged {
@@ -126,7 +133,9 @@ object GreetingMessageChanged {
   implicit val format: Format[GreetingMessageChanged] = Json.format
 }
 
-case class AddProductToOrderRequested(productId:String) extends LagomshoppingEvent
+case class OrderCreated(orderId: String) extends OrderEvent
+
+case class AddProductToOrderRequested(productId:String) extends OrderEvent
 
 object AddProductToOrderRequested{
   implicit val format:Format[AddProductToOrderRequested] = Json.format
@@ -134,7 +143,7 @@ object AddProductToOrderRequested{
 /**
   * This interface defines all the commands that the HelloWorld entity supports.
   */
-sealed trait LagomshoppingCommand[R] extends ReplyType[R]
+sealed trait OrderCommand[R] extends ReplyType[R]
 
 /**
   * A command to switch the greeting message.
@@ -142,9 +151,12 @@ sealed trait LagomshoppingCommand[R] extends ReplyType[R]
   * It has a reply type of [[Done]], which is sent back to the caller
   * when all the events emitted by this command are successfully persisted.
   */
-case class UseGreetingMessage(message: String) extends LagomshoppingCommand[Done]
 
-case class AddProductToOrderRequest(productId:String) extends LagomshoppingCommand[Done]
+case class AddProductToOrderRequest(productId:String) extends OrderCommand[Done]
+
+case class CreateOrder(productId: String) extends OrderCommand[Done]
+
+case class UseGreetingMessage(message: String) extends OrderCommand[Done]
 
 object UseGreetingMessage {
 
@@ -166,7 +178,7 @@ object UseGreetingMessage {
   * The reply type is String, and will contain the message to say to that
   * person.
   */
-case class Hello(name: String, organization: Option[String]) extends LagomshoppingCommand[String]
+case class Hello(name: String, organization: Option[String]) extends OrderCommand[String]
 
 object Hello {
 
@@ -196,6 +208,6 @@ object LagomshoppingSerializerRegistry extends JsonSerializerRegistry {
     JsonSerializer[UseGreetingMessage],
     JsonSerializer[Hello],
     JsonSerializer[GreetingMessageChanged],
-    JsonSerializer[LagomshoppingState]
+    JsonSerializer[OrderState]
   )
 }
